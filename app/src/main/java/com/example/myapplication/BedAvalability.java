@@ -1,5 +1,6 @@
 package com.example.myapplication;
 
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.ContextCompat;
 
@@ -45,32 +46,38 @@ public class BedAvalability extends AppCompatActivity {
     ImageView imageB4;
     ImageView imageB5;
     CheckBox bedb1chk;
-
-    String ACCESS_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1ODE5ODgzMDgsImlhdCI6MTU4MTk4MTEwOCwidXNyIjoiQWJkdWxSZWhtYW4ifQ.Cvi5T9hD8hQawb3BYFqEPE-3KHI4PT9DUfihdPmZdr4";  //String PassWord="mani1823";
+String RefreshToken;
+    String ACCESS_TOKEN =  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE1ODI5NDUxMTEsImlhdCI6MTU4MjkzNzkxMSwidXNyIjoiQWJkdWxSZWhtYW4ifQ.YYUAmAwqsPWAvWW0lyH0SqUsGRpninqIiTUSiZVW9LI";
     String UserName = "Mani";
     String PassWord = "password";
     String value;
     RequestQueue mRequestQueue;
+    RequestQueue queue;
     StringRequest mStringRequest;
     //String url = "https://api.thinger.io/v2/users/AbdulRehman/devices/ECG/ECG";
+    String tokenUrl = "https://api.thinger.io/oauth/token";
 
     String url = "https://api.thinger.io/v2/users/AbdulRehman/devices/ECG/BED";
+
     //String url="https://api.myjson.com/bins/j5f6b";
     Handler handler = new Handler();
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_bed_avalability);
-        uname=findViewById(R.id.uname);
+       // fetchBlogs("${your original access token here}");
         bedb1chk=findViewById(R.id.bedb1chk) ;
         HospitalName=findViewById(R.id.HospitalName);
         st=getIntent().getExtras().getString("Value");
-       st2=getIntent().getExtras().getString("Value2");
-        uname.setText(st);
+        st2=getIntent().getExtras().getString("Value2");
         HospitalName.setText(st2);
-        Runnable runnableCode = new Runnable() {
+        queue = Volley.newRequestQueue(getApplicationContext());
+        getAccessAndRefreshToken();
+
+
+
+        final Runnable runnableCode = new Runnable() {
             @Override
             public void run() {
                 // Do something here on the main thread
@@ -83,7 +90,63 @@ public class BedAvalability extends AppCompatActivity {
             }
         };
         handler.post(runnableCode);
+
+
+
+
+
     }
+
+   void getAccessAndRefreshToken() {
+       mRequestQueue = Volley.newRequestQueue(this);
+       JsonObjectRequest AccessRefreshTokenRequest = new JsonObjectRequest(Request.Method.POST, tokenUrl, null,
+               new Response.Listener<JSONObject>() {
+
+                   @Override
+                   public void onResponse(JSONObject response) {
+
+               try {
+
+
+                   ACCESS_TOKEN = (String)response.get("access_token");
+                   RefreshToken=(String)response.get("refresh_token");
+
+               } catch (JSONException e) {
+                   // this will never happen but if so, show error to user.
+               }
+           }
+       }, new Response.ErrorListener() {
+           @Override
+           public void onErrorResponse(VolleyError error) {
+               // show error to user. refresh failed.
+               Log.e("Error on getting token ", new String(error.networkResponse.data));
+           }
+       })
+       {
+
+           @Override
+           public Map<String, String> getHeaders() throws AuthFailureError {
+               Map<String, String> params = new HashMap<String, String>();
+               //  params.put("Content-Type", "application/x-www-form-urlencoded");
+
+
+               return params;
+
+           }
+
+           //Pass Your Parameters here
+           @Override
+           protected Map<String, String> getParams() {
+               Map<String, String> params = new HashMap<String, String>();
+
+               params.put("UserName", UserName);
+               params.put("PassWord", PassWord);
+               return params;
+           }
+       };
+
+
+       queue.add( AccessRefreshTokenRequest);}
 
     public void getdatafromApi()
     {
@@ -98,15 +161,15 @@ public class BedAvalability extends AppCompatActivity {
                         try {
                             value = response.get("out").toString();
                             if(value.equals("1")){
-                        bedb1chk.setText("Bed is Available");
+                                bedb1chk.setText("Bed is Available");
                                 bedb1chk.setChecked(true);
                             }
                             else
-                                if(value.equals("0"))
-                                {
-                                    bedb1chk.setText("Bed is not Available");
-                                    bedb1chk.setChecked(false );
-                                }
+                            if(value.equals("0"))
+                            {
+                                bedb1chk.setText("Bed is not Available");
+                                bedb1chk.setChecked(false );
+                            }
                             Log.e("Value", value);
                         } catch (JSONException e) {
                             e.printStackTrace();
@@ -122,14 +185,17 @@ public class BedAvalability extends AppCompatActivity {
             @Override
             public void onErrorResponse(VolleyError error) {
                 Log.e("Rest Response", error.toString());
+                if (error.networkResponse.statusCode == 401) {
+                   refreshAccessToken();
 
-            }
+               }
+           }
         }
         ) {
             @Override
             public Map<String, String> getHeaders() throws AuthFailureError {
                 Map<String, String> params = new HashMap<String, String>();
-                params.put("Content-Type", "application/json;");
+             //   params.put("Content-Type", "application/json;");
                 params.put("Authorization", "Bearer " + ACCESS_TOKEN);
 
                 return params;
@@ -154,6 +220,43 @@ public class BedAvalability extends AppCompatActivity {
 
 
     }
+
+
+    void refreshAccessToken() {
+        JSONObject params = new JSONObject();
+        try {
+           // params.put("client_id", "${your client id here}");
+          //  params.put("client_secret", "${your client secret here}");
+           // params.put("refresh_token", "${your refresh token here}");
+            params.put("refresh_token",RefreshToken);
+            params.put("grant_type",RefreshToken);
+        //    params.put("Content-Type", "application/x-www-form-urlencoded");
+        } catch (JSONException ignored) {
+            // never thrown in this case
+        }
+
+        JsonObjectRequest refreshTokenRequest = new JsonObjectRequest(Request.Method.POST, tokenUrl, params, new Response.Listener<JSONObject>() {
+            @Override
+            public void onResponse(JSONObject response) {
+                try {
+                    ACCESS_TOKEN = (String)response.get("access_token");
+
+                    getdatafromApi();
+
+                } catch (JSONException e) {
+                    // this will never happen but if so, show error to user.
+                }
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                // show error to user. refresh failed.
+                Log.e("Error on token refresh", new String(error.networkResponse.data));
+
+            }
+        });
+        queue.add(refreshTokenRequest);
+    }
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
@@ -168,6 +271,8 @@ public class BedAvalability extends AppCompatActivity {
         if(id==R.id.logout) {
 
             startActivity(new Intent(getApplicationContext(), MainActivity.class));
+            preferneceUtils.saveIsLogedIn(null,BedAvalability.this);
+            preferneceUtils.saveUserName(null,BedAvalability.this);
             return true;
         }
 
@@ -177,5 +282,13 @@ public class BedAvalability extends AppCompatActivity {
 
 
     }
+
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        Intent i = new Intent(BedAvalability.this, AppOptions.class);
+        i.putExtra("Value",getIntent().getExtras().getString("Value"));
+        startActivity(i);
     }
+}
 
